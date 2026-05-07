@@ -27,9 +27,9 @@ static int pinctrl_configure_pin(pinctrl_soc_pin_t pin)
 	uintptr_t pad;
 	uint8_t pinr_offset;
 	uint32_t val;
-	uint8_t port = FIELD_GET(SF32LB_PORT_MSK, pin);
-	uint8_t pad_num = FIELD_GET(SF32LB_PAD_MSK, pin);
-	uint8_t ds_idx = FIELD_GET(SF32LB_DS_IDX_MSK, pin);
+	uint8_t port = FIELD_GET(SF32LB_PORT_MSK, pin.pinmux);
+	uint8_t pad_num = FIELD_GET(SF32LB_PAD_MSK, pin.pinmux);
+	uint8_t ds_idx = FIELD_GET(SF32LB_DS_IDX_MSK, pin.cfg);
 	uint8_t ds_reg;
 
 	/*
@@ -59,19 +59,19 @@ static int pinctrl_configure_pin(pinctrl_soc_pin_t pin)
 	}
 
 	/* configure HPSYS_CFG *_PINR if applicable */
-	pinr_offset = FIELD_GET(SF32LB_PINR_OFFSET_MSK, pin);
+	pinr_offset = FIELD_GET(SF32LB_PINR_OFFSET_MSK, pin.pinmux);
 	if (pinr_offset != 0U) {
 		uint32_t pinr_msk;
 
-		pinr_msk = 0xFFU << (8U * FIELD_GET(SF32LB_PINR_FIELD_MSK, pin));
+		pinr_msk = 0xFFU << (8U * FIELD_GET(SF32LB_PINR_FIELD_MSK, pin.pinmux));
 		val = sys_read32(config->cfg + pinr_offset);
 		val &= ~pinr_msk;
-		val |= FIELD_PREP(pinr_msk, FIELD_GET(SF32LB_PAD_MSK, pin));
+		val |= FIELD_PREP(pinr_msk, FIELD_GET(SF32LB_PAD_MSK, pin.pinmux));
 		sys_write32(val, config->cfg + pinr_offset);
 	}
 
 	/* configure HPSYS_PINMUX */
-	switch (FIELD_GET(SF32LB_PORT_MSK, pin)) {
+	switch (FIELD_GET(SF32LB_PORT_MSK, pin.pinmux)) {
 	case SF32LB_PORT_SA:
 		pad = config->pad_sa;
 		break;
@@ -82,11 +82,12 @@ static int pinctrl_configure_pin(pinctrl_soc_pin_t pin)
 		return -EINVAL;
 	}
 
-	pad += FIELD_GET(SF32LB_PAD_MSK, pin) * 4U;
+	pad += FIELD_GET(SF32LB_PAD_MSK, pin.pinmux) * 4U;
 
 	val = sys_read32(pad);
 	val &= ~SF32LB_PINMUX_CFG_MSK;
-	val |= (pin & (SF32LB_PINMUX_CFG_MSK & ~SF32LB_DS_MSK));
+	val |= (pin.pinmux & SF32LB_FSEL_MSK);
+	val |= (pin.cfg & (SF32LB_PE_MSK | SF32LB_PS_MSK | SF32LB_IE_MSK));
 	val |= FIELD_PREP(SF32LB_DS_MSK, ds_reg);
 
 	sys_write32(val, pad);
