@@ -216,13 +216,18 @@ static __ramfunc void qspi_nor_read_fifo(const struct device *dev, uint8_t cmd, 
 		for (size_t i = 0U; i < (chunk_len / 4U); i++) {
 			uint32_t dr = sys_read32(data->mpi + MPI_DR);
 
-			memcpy(&cbuf[i * 4U], &dr, 4U);
+			cbuf[(i * 4U) + 0U] = (dr >> 0U) & 0xFFU;
+			cbuf[(i * 4U) + 1U] = (dr >> 8U) & 0xFFU;
+			cbuf[(i * 4U) + 2U] = (dr >> 16U) & 0xFFU;
+			cbuf[(i * 4U) + 3U] = (dr >> 24U) & 0xFFU;
 		}
 
 		if (chunk_len & 3U) {
 			uint32_t dr = sys_read32(data->mpi + MPI_DR);
 
-			memcpy(&cbuf[chunk_len & ~3U], &dr, chunk_len & 3U);
+			for (size_t i = 0U; i < (chunk_len & 3U); i++) {
+				cbuf[(chunk_len & ~3U) + i] = (dr >> (i * 8U)) & 0xFFU;
+			}
 		}
 
 		len -= chunk_len;
@@ -246,16 +251,20 @@ static __ramfunc void qspi_nor_write_fifo(const struct device *dev, uint8_t cmd,
 
 		/* push data */
 		for (size_t i = 0U; i < (chunk_len / 4U); i++) {
-			uint32_t dr = 0U;
+			uint32_t dr = ((uint32_t)cbuf[(i * 4U) + 0U] << 0U) |
+				      ((uint32_t)cbuf[(i * 4U) + 1U] << 8U) |
+				      ((uint32_t)cbuf[(i * 4U) + 2U] << 16U) |
+				      ((uint32_t)cbuf[(i * 4U) + 3U] << 24U);
 
-			memcpy(&dr, &cbuf[i * 4U], 4U);
 			sys_write32(dr, data->mpi + MPI_DR);
 		}
 
 		if (chunk_len & 3U) {
 			uint32_t dr = 0U;
+			for (size_t i = 0U; i < (chunk_len & 3U); i++) {
+				dr |= cbuf[(chunk_len & ~3U) + i] << (i * 8U);
+			}
 
-			memcpy(&dr, &cbuf[chunk_len & ~3U], chunk_len & 3U);
 			sys_write32(dr, data->mpi + MPI_DR);
 		}
 
